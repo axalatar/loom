@@ -5,7 +5,7 @@ const LA = require('./linearAlgebra');
 
 
 
-
+// not working
 async function dither(matrix) {
 	let output = []
 	
@@ -96,7 +96,8 @@ if(matrix[y] == undefined) {
 	  
   });
 	
-  return dither(matrix)
+  //return dither(matrix)
+	return matrix;
 }
 
 module.exports = {
