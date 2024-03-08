@@ -13,7 +13,7 @@ app.use(express.json())
 
 
 app.get("/", (req, res) => {
-  res.sendFile('routes/default (working).html', {root: __dirname })
+  res.sendFile('default (working).html', {root: __dirname })
   // res.sendFile('routes/default.html', {root: __dirname })
   // res.status(200).sendFile(path.join(__dirname, '/routes/default.html'));
 })
