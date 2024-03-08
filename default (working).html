@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mechanical Loom Interface</title>
+<style>
+body {
+    background-color: #96908d; /* Gray background color */
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    height: 100vh;
+    margin: 0;
+    font-family: Arial, sans-serif;
+}
+.grid-container {
+    display: grid;
+    gap: 5px;
+}
+.square {
+    width: 50px;
+    height: 50px;
+    background-color: black;
+    cursor: pointer;
+}
+#sizeInput {
+    margin-bottom: 10px;
+}
+#uploadButton {
+    margin-top: 10px;
+}
+#sendButton {
+    margin-top: 10px;
+}
+#previewContainer {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    border: 1px solid black;
+}
+#preview {
+    width: 200px;
+    height: 200px;
+    display: block;
+}
+.preview-pixel {
+    width: 5px;
+    height: 5px;
+    display: inline-block;
+    margin: 0;
+    padding: 0;
+}
+#grid {
+    margin-right: 10px; /* Add margin to the right of the grid */
+}
+#rowInput {
+    margin-bottom: 10px; /* Add margin to the top of the rowInput */
+    width: 50px
+}
+#imageInput {
+    margin-top: 10px;
+}
+</style>
+</head>
+<body>
+<div style="width: 80%; display: grid; grid-auto-flow: column; justify-content: end; grid-gap: 200px">
+  <div style="width:150px">
+    <input type="checkbox" id="previewLine" onclick="resetColors()">
+    <label for="previewLine"> Show current row in preview</label>
+    <br>
+    <input type="checkbox" id="fullLine" onclick="resetColors()">
+    <label for="fullLine"> Show current row in editor</label>
+    <br>
+  </div>
+  <div style="width:10px">
+    <label for="sizeInput">Grid Size: </label>
+    <input type="number" id="sizeInput" min="1" max="40" value="10">
+    <button id="resizeButton" onclick="resizeGrid()">Resize Grid</button>
+  </div>
+  <div style="width:20px">
+    <input type="file" id="imageInput" accept="image/*">
+    <button id="uploadButton" onclick="uploadImage()">Upload Image</button>
+  </div>
+  <div style="width:100px">
+	  <input id='fileGetter' type='file' onchange="importJson()" hidden/>
+    <button id="import" onclick="openDialog()">
+    <label for="import"> Import a JSON file</label>
+    <br>
+    <button id="export" onclick="exportJson()">
+    <label for="export"> Export data as a JSON file</label>
+    <br>
+  </div>
+</div>
+<label for="rowInput">Row:</label>
+  <input type="number" id="rowInput" min="1" value="1" onkeyup="resetColors()" oninput="resetColors()">
+  <button id="sendButton" onclick="sendData()">Send Data to Server</button>
+<div class="grid-container" id="grid"> 
+  <!-- Grid of squares will be generated here --> 
+</div>
+<div id="previewContainer">
+  <canvas id="preview" width="200" height="200"></canvas>
+</div>
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const gridContainer = document.getElementById('grid');
+        const previewCanvas = document.getElementById('preview');
+        let gridSizeInput = document.getElementById('sizeInput');
+        let rowInput = document.getElementById('rowInput');
+
+let pLine = document.getElementById('previewLine');
+let fLine = document.getElementById('fullLine'); 
+        let gridValues = [];
+      let imageInput = document.getElementById('imageInput');
+
+
+        // Initial grid creation
+        createGrid(gridSizeInput.value);
+		
+		
+		window.openDialog = async function () {
+  await document.getElementById('fileGetter').click();
+}
+
+	window.exportJson = function () {
+		var file = new Blob([JSON.stringify(gridValues)], {
+    		type: 'text/json'
+		});
+
+		const link = document.createElement("a");
+
+    link.download = "gridData.json";
+    link.href = window.URL.createObjectURL(file);
+    link.dataset.downloadurl = ["text/json", link.download, link.href].join(":");
+
+    const evt = new MouseEvent("click", {
+        view: window,
+        bubbles: true,
+        cancelable: true,
+    });
+
+    link.dispatchEvent(evt);
+    link.remove()
+	}
+	
+	window.parseJsonFile = async function (file) {
+  return new Promise((resolve, reject) => {
+    const fileReader = new FileReader()
+    fileReader.onload = event => resolve(JSON.parse(event.target.result))
+    fileReader.onerror = error => reject(error)
+    fileReader.readAsText(file)
+  })
+}
+		
+	
+	window.importJson = async function () {
+		let input = document.getElementById('fileGetter')
+		
+    	const selectedFile = input.files[0];
+		let newArray = []
+		try {
+			newArray = await parseJsonFile(selectedFile)
+		} catch(error) {
+			console.log(error)
+			return
+		}
+		gridSizeInput.value = newArray.length
+		createGrid(newArray.length, newArray)
+	}
+		
+		
+	window.resetColors = function () {
+		const size = gridSizeInput.value;
+		const values = gridValues;
+		createGrid(size, values);
+}
+      function createGrid(size, values=-1) {
+          gridContainer.innerHTML = ''; // Clear existing grid
+
+          // Calculate maximum square size to fit the grid within the screen
+          const screenWidth = window.innerWidth;
+          const screenHeight = window.innerHeight;
+          const maxSquareSize = Math.floor(Math.min(screenWidth / size, screenHeight / size)*0.6); // Round down to the nearest integer
+          const maxGap = 5; // Maximum allowed gap size
+          const minGap = 1;
+          var gap1 = Math.min(maxGap, Math.floor(maxSquareSize * 0.1)); // Round down to the nearest integer, set the gap to 10% of square size or maximum allowed gap
+          const gap = Math.max(gap1, minGap)
+
+	const row = rowInput.value;
+
+          gridContainer.style.gridTemplateColumns = `repeat(${size}, ${maxSquareSize}px)`;
+          gridContainer.style.gap = `${gap}px`; // Set the gap size
+
+          gridValues = []; // Reset grid values
+
+        if(values == -1) {
+          for (let i = 0; i < size; i++) {
+              gridValues[i] = [];
+              for (let j = 0; j < size; j++) {
+                  gridValues[i][j] = 0;
+              }
+          }
+        }
+        else {
+            gridValues = values
+        }
+          for (let i = 0; i < size; i++) {
+              for (let j = 0; j < size; j++) {
+              
+                  const square = document.createElement('div');
+                  square.className = 'square';
+                  square.dataset.row = i;
+                  square.dataset.col = j;
+                  square.style.width = `${maxSquareSize}px`; // Set square size
+                  square.style.height = `${maxSquareSize}px`;
+                  square.addEventListener('click', toggleSquare);
+                square.style.backgroundColor = gridValues[i][j] === 0 ? 'black' : 'white';
+		if(fLine.checked == true) {
+		if((row-1)%size == i) {
+			square.style.backgroundColor = gridValues[i][j] === 0 ? 'orange' : 'yellow';
+		    }
+		}
+                  gridContainer.appendChild(square);
+              }
+          }
+          updatePreview();
+      }
+
+        function toggleSquare() {
+	const currentRow = rowInput.value;
+            const row = parseInt(this.dataset.row);
+            const col = parseInt(this.dataset.col);
+            gridValues[row][col] = gridValues[row][col] === 0 ? 1 : 0; // Toggle value
+	resetColors();
+        }
+
+        function updatePreview() {
+            const ctx = previewCanvas.getContext('2d');
+	    const row = (rowInput.value-1) % 40;
+			console.log(row)
+            const gridSize = gridValues.length;
+            const pixelSize = previewCanvas.width / 40;
+
+          previewCanvas.height = previewCanvas.height;
+
+          const repeat = 40 / gridSize;
+  
+            ctx.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
+
+          
+
+          let pixels = []
+          for(let o = 0; o < repeat; o++) {
+            for (let i = 0; i < gridSize; i++) {
+              let newRow = []
+              for(let l = 0; l < repeat; l++) {
+                for (let j = 0; j < gridSize; j++) {
+		    
+                    	ctx.fillStyle = gridValues[i][j] === 0 ? 'black' : 'white';
+			if(pLine.checked == true) {
+				if(i + (o*gridSize) == row) {
+                    	ctx.fillStyle = gridValues[i][j] === 0 ? 'orange' : 'yellow';
+			}
+			}
+                    ctx.fillRect((j+(l*gridSize)) * pixelSize, (i+(o*gridSize)) * pixelSize, pixelSize, pixelSize);
+                }
+                }
+                }
+            }
+        }
+
+        window.resizeGrid = function () {
+            const newSize = gridSizeInput.value;
+            if (newSize >= 1 && newSize <= 40 && 40 / newSize == Math.floor(40 / newSize)) {
+                createGrid(newSize);
+            } else {
+                alert('Please enter a factor of 40.');
+            }
+        };
+
+        window.sendData = function () {
+            // Sending gridValues to server
+            fetch('/api', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    row: (rowInput.value-1)%gridSizeInput.value,
+                    gridValues: gridValues
+                })
+            }).then(response => {
+                if (response.ok) {
+                    alert('Data sent successfully!');
+                    rowInput.value++;
+		resetColors();
+                } else {
+                    alert('Failed to send data to the server.');
+                }
+            }).catch(error => {
+                console.error('Error sending data to server:', error);
+                alert('An error occurred while sending data to the server.');
+            });
+        };
+
+        // Event listener for space bar press
+        document.addEventListener('keydown', function (event) {
+            if (event.code === 'Space') {
+                sendData();
+            }
+        });
+              window.uploadImage = function () {
+                const fileInput = document.getElementById('imageInput');
+                const file = fileInput.files[0];
+                if (file) {
+                    const formData = new FormData();
+                    formData.append('image', file);
+
+                    fetch('/image', {
+                        method: 'POST',
+                        body: formData
+                    })
+                    .then(response => {
+                        if (response.ok) {
+                            return response.json();
+                        } else {
+                            throw new Error('Failed to upload image.');
+                        }
+                    })
+                    .then(data => {
+                        // Resize the grid if needed
+                        const newSize = data.length;
+                        if (newSize !== gridSizeInput.value) {
+                            gridSizeInput.value = newSize;
+                            createGrid(newSize);
+                        }
+
+                        // Update the grid with the new values
+                        gridValues = data;
+                        for (let i = 0; i < newSize; i++) {
+                            for (let j = 0; j < newSize; j++) {
+                                const square = document.querySelector(`.square[data-row='${i}'][data-col='${j}']`);
+                                square.style.backgroundColor = gridValues[i][j] === 0 ? 'black' : 'white';
+                            }
+                        }
+                      updatePreview();
+			resetColors();
+                    })
+                    .catch(error => {
+                        console.error('Error uploading image:', error);
+                        alert('An error occurred while uploading the image.');
+                    });
+                } else {
+                    alert('Please select an image file.');
+                }
+              };
+    });
+  
+</script>
+</body>
+</html>
